@@ -1,13 +1,13 @@
-UnityMCP ＋ UnityHub を導入
+UnityMCP ＋ UnityHub をインストール
 
 ```
 curl -sL https://raw.githubusercontent.com/KAFKA2306/UnityMCPforUbuntu22.04/main/install.sh | bash
 ```
 
-利用
+MCP サーバー起動
 
 ```
-# MCP サーバー起動
+
 cd ~/UnityMCP/UnityMCPforUbuntu22.04/unity-mcp-server
 node dist/index.js
 ```
