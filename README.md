@@ -15,4 +15,3 @@ node dist/index.js
 ```
 
 で利用開始できます。
-```
