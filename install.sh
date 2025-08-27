@@ -31,33 +31,47 @@ fi
 if ! unityhub -- --headless editors -i | grep -q "$UNITY_VERSION"; then
   echo "[*] Installing Unity Editor $UNITY_VERSION…"
   
-  AVAILABLE_VERSIONS=$(unityhub -- --headless editors -a 2>/dev/null || echo "")
+  AVAILABLE_VERSIONS=$(unityhub -- --headless editors -a 2>/dev/null | grep -E "^[0-9]+\.[0-9]+\.[0-9]+[a-z][0-9]+" || echo "")
   
-  if echo "$AVAILABLE_VERSIONS" | grep -q "^$UNITY_VERSION"; then
-    CHANGESET=$(echo "$AVAILABLE_VERSIONS" | awk -v v="$UNITY_VERSION" '$1==v{print $2;exit}')
+  if [[ -z "$AVAILABLE_VERSIONS" ]]; then
+    echo "[*] Trying alternative method to get Unity versions..."
+    FALLBACK_VERSIONS="2022.3.6f1 2022.3.15f1 2022.3.17f1 2022.3.20f1"
+    for version in $FALLBACK_VERSIONS; do
+      echo "[*] Trying Unity $version..."
+      if unityhub -- --headless install --version "$version" --changeset auto --module linux-il2cpp; then
+        UNITY_VERSION="$version"
+        break
+      fi
+    done
   else
-    echo "[!] $UNITY_VERSION not available. Available versions:"
-    echo "$AVAILABLE_VERSIONS" | head -5
-    LATEST_2022=$(echo "$AVAILABLE_VERSIONS" | grep "^2022\.3\." | head -1)
-    if [[ -n "$LATEST_2022" ]]; then
-      UNITY_VERSION=$(echo "$LATEST_2022" | awk '{print $1}')
-      CHANGESET=$(echo "$LATEST_2022" | awk '{print $2}')
-      echo "[*] Using $UNITY_VERSION instead"
+    if echo "$AVAILABLE_VERSIONS" | grep -q "^$UNITY_VERSION"; then
+      CHANGESET=$(echo "$AVAILABLE_VERSIONS" | awk -v v="$UNITY_VERSION" '$1==v{print $2;exit}')
     else
-      echo "[!] No Unity 2022.3.x version available"
-      exit 1
+      echo "[!] $UNITY_VERSION not available. Available versions:"
+      echo "$AVAILABLE_VERSIONS" | head -5
+      LATEST_2022=$(echo "$AVAILABLE_VERSIONS" | grep "^2022\.3\." | head -1)
+      if [[ -n "$LATEST_2022" ]]; then
+        UNITY_VERSION=$(echo "$LATEST_2022" | awk '{print $1}')
+        CHANGESET=$(echo "$LATEST_2022" | awk '{print $2}')
+        echo "[*] Using $UNITY_VERSION instead"
+      else
+        UNITY_VERSION="2022.3.6f1"
+        echo "[*] Falling back to $UNITY_VERSION"
+      fi
+    fi
+
+    if [[ -n "${CHANGESET:-}" ]]; then
+      unityhub -- --headless install \
+        --version "$UNITY_VERSION" \
+        --changeset "$CHANGESET" \
+        --module linux-il2cpp
+    else
+      unityhub -- --headless install \
+        --version "$UNITY_VERSION" \
+        --changeset auto \
+        --module linux-il2cpp
     fi
   fi
-
-  if [[ -z "$CHANGESET" ]]; then
-    echo "[!] Could not determine changeset for $UNITY_VERSION"
-    exit 1
-  fi
-
-  unityhub -- --headless install \
-    --version "$UNITY_VERSION" \
-    --changeset "$CHANGESET" \
-    --module linux-il2cpp
 else
   echo "[=] Unity Editor $UNITY_VERSION 既に存在"
 fi
