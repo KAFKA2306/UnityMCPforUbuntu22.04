@@ -1,34 +1,40 @@
 #!/usr/bin/env bash
 set -e
 
+# 任意で変更する推奨 Unity バージョン（VRChat 2025-08 時点）
+UNITY_VERSION="2022.3.17f1"
+
+echo "▶ VRChat 開発環境セットアップを開始します…"
+
 # 0. 作業ディレクトリ
-mkdir -p ~/UnityMCP && cd ~/UnityMCP
+mkdir -p ~/VRChatDev && cd ~/VRChatDev
 
-# 1. ソース取得（再実行時はスキップ）
-[ -d UnityMCPforUbuntu22.04 ] || \
-  git clone --depth=1 https://github.com/KAFKA2306/UnityMCPforUbuntu22.04.git
+# 1. テンプレート取得（再実行時はスキップ）
+[ -d vrchat-world-template ] || \
+  git clone --depth=1 https://github.com/vrchat-community/vrchat-world-template.git
 
-# 2. Node.js LTS
-curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# 3. Unity Hub（CLI版で Editor を落とす用途）
+# 2. Unity Hub（Linux 公式 apt レポジトリ）
 wget -qO - https://hub.unity3d.com/linux/keys/public | sudo apt-key add -
-echo 'deb https://hub.unity3d.com/linux/repos/deb stable main' \
-  | sudo tee /etc/apt/sources.list.d/unityhub.list
+echo 'deb https://hub.unity3d.com/linux/repos/deb stable main' | \
+  sudo tee /etc/apt/sources.list.d/unityhub.list > /dev/null
 sudo apt update && sudo apt install -y unityhub
 
-# 4. MCP サーバー依存／ビルド
-cd UnityMCPforUbuntu22.04/unity-mcp-server
-npm ci
-npm run build              # TypeScript → JS
-echo '✓ UnityMCP server built'
+# 3. 推奨 Unity Editor を自動インストール（–headless）
+unityhub -- --headless install \
+  --version "$UNITY_VERSION" \
+  --changeset $(unityhub -- --headless editors | grep "$UNITY_VERSION" | awk '{print $2}') \
+  --module linux-il2cpp
 
-# 5. 起動方法メモを表示
+# 4. 完了メッセージ
 cat <<'EOS'
 
 ========================================
-⚡  セットアップ完了！
-$ node dist/index.js           # MCP サーバー起動（stdio）
-別ターミナルから JSON-RPC を投げれば即利用できます。
+⚡ セットアップ完了！
+
+$ unityhub &      # Unity Hub GUI 起動
+プロジェクト: ~/VRChatDev/vrchat-world-template
+
+※ 初回起動時に VRChat SDK (.unitypackage) もしくは
+   VRChat Creator Companion をインポートしてください。
+========================================
 EOS
