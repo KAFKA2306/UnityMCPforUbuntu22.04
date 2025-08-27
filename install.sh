@@ -27,7 +27,7 @@ if ! command -v unityhub &>/dev/null; then
 else
   echo "[=] Unity Hub は既にインストール済み"
 fi
-
+"""
 # === Unity Editor のインストール（VRChat 対応版） ===
 echo "[*] 対応版 Unity Editor を検索中…"
 INSTALLED=false
@@ -45,7 +45,7 @@ for version in "${TARGET_VERSIONS[@]}"; do
     break
   fi
 done
-
+"""
 if ! $INSTALLED; then
   echo "[!] 対応版 Unity Editor がリストに見つかりませんでした。フォールバック処理へ…"
   # 全バージョンから自動取得
