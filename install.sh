@@ -5,104 +5,84 @@ LOG_DIR="$HOME/vrchat-dev"
 mkdir -p "$LOG_DIR"
 exec > >(tee -a "$LOG_DIR/install.log") 2>&1
 
-UNITY_VERSION="2022.3.22f1"
+# === 設定セクション ===
+# Unity LTS の主要バージョン（VRChat 推奨: 2022.3.x 系）
+TARGET_VERSIONS=(2022.3.20f1 2022.3.17f1 2022.3.15f1 2022.3.6f1)
 PROJ_DIR="$HOME/vrchat-dev/project"
-PKGS=(vrc_sdk3-worlds vrc_sdk3-avatars udonsharp)
 MCP_DIR="$HOME/vrchat-dev/unity-mcp"
+PKGS=(vrc_sdk3-worlds vrc_sdk3-avatars udonsharp)
 
 export DEBIAN_FRONTEND=noninteractive
 
+# === Unity Hub のインストール ===
 if ! command -v unityhub &>/dev/null; then
-  echo "[*] Installing Unity Hub…"
+  echo "[*] Unity Hub をインストール中…"
   sudo mkdir -p /usr/share/keyrings
   curl -fsSL https://hub.unity3d.com/linux/keys/public \
     | sudo gpg --dearmor -o /usr/share/keyrings/unityhub.gpg
-
-  echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/unityhub.gpg] \
-https://hub.unity3d.com/linux/repos/deb stable main' \
+  echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/unityhub.gpg] https://hub.unity3d.com/linux/repos/deb stable main' \
     | sudo tee /etc/apt/sources.list.d/unityhub.list >/dev/null
-
   sudo apt-get update
   sudo apt-get install -y unityhub
 else
-  echo "[=] Unity Hub 既にインストール済み"
+  echo "[=] Unity Hub は既にインストール済み"
 fi
 
-if ! unityhub -- --headless editors -i | grep -q "$UNITY_VERSION"; then
-  echo "[*] Installing Unity Editor $UNITY_VERSION…"
-  
-  AVAILABLE_VERSIONS=$(unityhub -- --headless editors -a 2>/dev/null | grep -E "^[0-9]+\.[0-9]+\.[0-9]+[a-z][0-9]+" || echo "")
-  
-  if [[ -z "$AVAILABLE_VERSIONS" ]]; then
-    echo "[*] Trying alternative method to get Unity versions..."
-    FALLBACK_VERSIONS="2022.3.6f1 2022.3.15f1 2022.3.17f1 2022.3.20f1"
-    for version in $FALLBACK_VERSIONS; do
-      echo "[*] Trying Unity $version..."
-      if unityhub -- --headless install --version "$version" --changeset auto --module linux-il2cpp; then
-        UNITY_VERSION="$version"
-        break
-      fi
-    done
-  else
-    if echo "$AVAILABLE_VERSIONS" | grep -q "^$UNITY_VERSION"; then
-      CHANGESET=$(echo "$AVAILABLE_VERSIONS" | awk -v v="$UNITY_VERSION" '$1==v{print $2;exit}')
-    else
-      echo "[!] $UNITY_VERSION not available. Available versions:"
-      echo "$AVAILABLE_VERSIONS" | head -5
-      LATEST_2022=$(echo "$AVAILABLE_VERSIONS" | grep "^2022\.3\." | head -1)
-      if [[ -n "$LATEST_2022" ]]; then
-        UNITY_VERSION=$(echo "$LATEST_2022" | awk '{print $1}')
-        CHANGESET=$(echo "$LATEST_2022" | awk '{print $2}')
-        echo "[*] Using $UNITY_VERSION instead"
-      else
-        UNITY_VERSION="2022.3.6f1"
-        echo "[*] Falling back to $UNITY_VERSION"
-      fi
-    fi
-
-    if [[ -n "${CHANGESET:-}" ]]; then
-      unityhub -- --headless install \
-        --version "$UNITY_VERSION" \
-        --changeset "$CHANGESET" \
-        --module linux-il2cpp
-    else
-      unityhub -- --headless install \
-        --version "$UNITY_VERSION" \
-        --changeset auto \
-        --module linux-il2cpp
-    fi
+# === Unity Editor のインストール（VRChat 対応版） ===
+echo "[*] 対応版 Unity Editor を検索中…"
+INSTALLED=false
+for version in "${TARGET_VERSIONS[@]}"; do
+  echo "[*] $version を試行…"
+  if unityhub -- --headless editors -i | grep -q "^$version"; then
+    # changeset を自動取得でインストール
+    unityhub -- --headless install \
+      --version "$version" \
+      --changeset auto \
+      --module linux-il2cpp
+    INSTALLED=true
+    UNITY_VERSION="$version"
+    echo "[*] Unity $version のインストール完了"
+    break
   fi
-else
-  echo "[=] Unity Editor $UNITY_VERSION 既に存在"
+done
+
+if ! $INSTALLED; then
+  echo "[!] 対応版 Unity Editor がリストに見つかりませんでした。フォールバック処理へ…"
+  # 全バージョンから自動取得
+  unityhub -- --headless install \
+    --version "${TARGET_VERSIONS[0]}" \
+    --changeset auto \
+    --module linux-il2cpp
+  UNITY_VERSION="${TARGET_VERSIONS[0]}"
 fi
 
+# === vrc-get のインストール（VRChat SDK 管理ツール） ===
 if ! command -v vrc-get &>/dev/null; then
-  echo "[*] Installing vrc-get…"
-  tmp=$(mktemp -d)
-  curl -sL "$(curl -sL \
-    https://api.github.com/repos/lox9973/vrc-get/releases/latest \
-      | grep linux-x64 | grep browser_download_url \
-      | cut -d'"' -f4)" -o "$tmp/vrc-get.tar.gz"
-
-  tar -xf "$tmp/vrc-get.tar.gz" -C "$tmp"
-  sudo install -m755 "$tmp/vrc-get" /usr/local/bin
-  rm -rf "$tmp"
+  echo "[*] vrc-get をインストール中…"
+  TMP=$(mktemp -d)
+  curl -sL "$(curl -sL https://api.github.com/repos/lox9973/vrc-get/releases/latest \
+    | grep linux-x64 | grep browser_download_url | cut -d\" -f4)" \
+    -o "$TMP/vrc-get.tar.gz"
+  tar -xf "$TMP/vrc-get.tar.gz" -C "$TMP"
+  sudo install -m755 "$TMP/vrc-get" /usr/local/bin
+  rm -rf "$TMP"
 else
-  echo "[=] vrc-get 既にインストール済み"
+  echo "[=] vrc-get は既にインストール済み"
 fi
 
+# === UnityMCP サーバーのセットアップ ===
 if [[ ! -d "$MCP_DIR/UnityMCPforUbuntu22.04" ]]; then
-  echo "[*] Cloning UnityMCP…"
+  echo "[*] UnityMCP をクローン中…"
   mkdir -p "$MCP_DIR"
-  git clone --depth=1 \
-    https://github.com/KAFKA2306/UnityMCPforUbuntu22.04.git \
+  git clone --depth=1 https://github.com/KAFKA2306/UnityMCPforUbuntu22.04.git \
     "$MCP_DIR/UnityMCPforUbuntu22.04"
 else
-  echo "[=] UnityMCP 既にクローン済み"
+  echo "[=] UnityMCP は既にクローン済み"
 fi
 
+# === Node.js & MCP サーバービルド ===
 if ! command -v npm &>/dev/null; then
-  echo "[*] Installing Node.js LTS…"
+  echo "[*] Node.js LTS をインストール中…"
   curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
   sudo apt-get install -y nodejs
 fi
@@ -113,33 +93,34 @@ pushd "$MCP_DIR/UnityMCPforUbuntu22.04/unity-mcp-server" >/dev/null
   npm run build
 popd >/dev/null
 
+# === VRChat SDK のインストール ===
 mkdir -p "$PROJ_DIR"
 for pkg in "${PKGS[@]}"; do
   if ! vrc-get --project "$PROJ_DIR" list | grep -q "$pkg"; then
     echo "[*] vrc-get install $pkg"
     vrc-get --project "$PROJ_DIR" install "$pkg"
+  else
+    echo "[=] $pkg は既にインストール済み"
   fi
 done
 
+# === 完了メッセージ ===
 cat <<EOF
 
 ========================================
-  SETUP COMPLETE ✨
+  セットアップ完了 🎉
 ========================================
-Unity Hub      : unityhub &
-Headless Editor: $UNITY_VERSION
-Project        : $PROJ_DIR
-UnityMCP srv   : $MCP_DIR/UnityMCPforUbuntu22.04/unity-mcp-server
+Unity Hub      : unityhub
+Editor Version : $UNITY_VERSION
+プロジェクト   : $PROJ_DIR
+MCP サーバー   : $MCP_DIR/UnityMCPforUbuntu22.04/unity-mcp-server
 
 次の手順
 ------------------------------------------------
-1) Unity Hub を起動し、初回のみ
-   ・Unity アカウントで sign-in
-   ・License (Personal) のアクティベート
-2) Hub でプロジェクト $PROJ_DIR を開く
-3) MCP サーバーを別端末で
+1) Unity Hub でサインイン＆ライセンス認証
+2) プロジェクトを開く（パス: $PROJ_DIR）
+3) 別端末で MCP サーバー起動:
      cd \$MCP_DIR/UnityMCPforUbuntu22.04/unity-mcp-server
      node dist/index.js
-   として起動
-4) 好きなワールド／アバター開発を開始！
+4) VRChat ワールド／アバター開発を開始！
 EOF
