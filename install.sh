@@ -1,40 +1,45 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# 任意で変更する推奨 Unity バージョン（VRChat 2025-08 時点）
-UNITY_VERSION="2022.3.17f1"
+# versions / paths
+UNITY_VERS="2022.3.17f1"
+PROJ_DIR="$HOME/vrchat-dev/project"
+PKGS=(vrc_sdk3-worlds vrc_sdk3-avatars udonsharp)
+MCP_DIR="$HOME/vrchat-dev/unity-mcp"
 
-echo "▶ VRChat 開発環境セットアップを開始します…"
+# hub
+command -v unityhub >/dev/null || {
+  wget -qO- https://hub.unity3d.com/linux/keys/public | sudo apt-key add -
+  echo 'deb https://hub.unity3d.com/linux/repos/deb stable main' | sudo tee /etc/apt/sources.list.d/unityhub.list >/dev/null
+  sudo apt update && sudo apt install -y unityhub
+}
 
-# 0. 作業ディレクトリ
-mkdir -p ~/VRChatDev && cd ~/VRChatDev
+# unity editor
+unityhub -- --headless editors | grep -q "$UNITY_VERS" || {
+  cs=$(unityhub -- --headless editors | awk -v v="$UNITY_VERS" '$1==v{print $2;exit}')
+  unityhub -- --headless install --version "$UNITY_VERS" --changeset "$cs" --module linux-il2cpp
+}
 
-# 1. テンプレート取得（再実行時はスキップ）
-[ -d vrchat-world-template ] || \
-  git clone --depth=1 https://github.com/vrchat-community/vrchat-world-template.git
+# vrc-get
+command -v vrc-get >/dev/null || {
+  tmp=$(mktemp -d)
+  curl -sL "$(curl -sL https://api.github.com/repos/lox9973/vrc-get/releases/latest | grep linux-x64 | grep browser_download_url | cut -d'"' -f4)" -o "$tmp/vrc-get.tar.gz"
+  tar -xzf "$tmp/vrc-get.tar.gz" -C "$tmp"
+  sudo install -m755 "$tmp/vrc-get" /usr/local/bin
+  rm -r "$tmp"
+}
 
-# 2. Unity Hub（Linux 公式 apt レポジトリ）
-wget -qO - https://hub.unity3d.com/linux/keys/public | sudo apt-key add -
-echo 'deb https://hub.unity3d.com/linux/repos/deb stable main' | \
-  sudo tee /etc/apt/sources.list.d/unityhub.list > /dev/null
-sudo apt update && sudo apt install -y unityhub
+# unity-mcp
+mkdir -p "$MCP_DIR" && cd "$MCP_DIR"
+[ -d UnityMCPforUbuntu22.04 ] || git clone --depth=1 https://github.com/KAFKA2306/UnityMCPforUbuntu22.04.git
+cd UnityMCPforUbuntu22.04/unity-mcp-server
+command -v npm >/dev/null || { curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -; sudo apt-get install -y nodejs; }
+npm ci && npm run build
 
-# 3. 推奨 Unity Editor を自動インストール（–headless）
-unityhub -- --headless install \
-  --version "$UNITY_VERSION" \
-  --changeset $(unityhub -- --headless editors | grep "$UNITY_VERSION" | awk '{print $2}') \
-  --module linux-il2cpp
+# project + packages
+mkdir -p "$PROJ_DIR"
+for p in "${PKGS[@]}"; do
+  vrc-get --project "$PROJ_DIR" install "$p"
+done
 
-# 4. 完了メッセージ
-cat <<'EOS'
-
-========================================
-⚡ セットアップ完了！
-
-$ unityhub &      # Unity Hub GUI 起動
-プロジェクト: ~/VRChatDev/vrchat-world-template
-
-※ 初回起動時に VRChat SDK (.unitypackage) もしくは
-   VRChat Creator Companion をインポートしてください。
-========================================
-EOS
+echo "ready – project: $PROJ_DIR   mcp: $MCP_DIR/UnityMCPforUbuntu22.04/unity-mcp-server"
