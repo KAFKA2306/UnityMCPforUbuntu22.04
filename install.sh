@@ -9,7 +9,7 @@ exec > >(tee -a "$LOG_DIR/install.log") 2>&1
 #-------------------------------------------------
 # 変数
 #-------------------------------------------------
-UNITY_VERSION="2022.3.17f1"
+UNITY_VERSION="2022.3.22f1"
 PROJ_DIR="$HOME/vrchat-dev/project"
 PKGS=(vrc_sdk3-worlds vrc_sdk3-avatars udonsharp)
 MCP_DIR="$HOME/vrchat-dev/unity-mcp"
