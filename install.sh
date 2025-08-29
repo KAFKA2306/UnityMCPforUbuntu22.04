@@ -17,7 +17,10 @@ PKGS=(vrc_sdk3-worlds vrc_sdk3-avatars udonsharp)
 # 依存ツール（xvfb で仮想Xを用意）
 echo "[*] Installing prerequisites…"
 sudo apt-get update -y
-sudo apt-get install -y ca-certificates curl gnupg xvfb
+sudo apt-get install -y ca-certificates curl gnupg xvfb dbus
+if ! sudo apt-get install -y libasound2; then
+  sudo apt-get install -y libasound2t64
+fi
 
 # Unity Hub インストール
 if ! command -v unityhub &>/dev/null; then
@@ -35,8 +38,9 @@ fi
 
 # Unity Hub ラッパー（xvfb-run + headless + errors）
 HUB() {
-  xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' \
-    unityhub --headless --errors "$@"
+  dbus-run-session -- \
+    xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' \
+      unityhub --headless --errors "$@"
 }
 
 # 対応 Unity Editor の導入（--changeset auto + linux-il2cpp）
