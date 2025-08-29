@@ -7,4 +7,5 @@ curl -sL https://raw.githubusercontent.com/KAFKA2306/UnityMCPforUbuntu22.04/main
 -  **Unity Hub & Unity Editor 2022.3 LTS（ヘッドレス）** を自動インストール  
 -  **vrc-get** で **SDK3 Worlds / Avatars + UdonSharp** を即投入  
 -  **UnityMCP サーバー** を Node.js LTS 込みでビルド配置  
--  完全非対話、再実行安全、ログは `~/vrchat-dev/install.log`
+
+Unityhubとunityが連携しない助けて
